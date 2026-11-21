@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Uploaded workflows and generated reports
+uploads/
+workflow_public.json
+privacy_report.md
+
+# Editor settings
+.vscode/
+.idea/
+task.txt
+SESSION_NOTES.md
+PROJECT_STATUS.md

@@ -1,0 +1,60 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "apiKey": "sk-test-1234567890abcdef1234567890",
+        "email": "user@example.com",
+        "internal_ip": "192.168.1.50",
+        "webhook_url": "https://n8n.company.local/webhook/secret-id-123",
+        "phone": "+7 900 123 45 67"
+      },
+      "id": "node-1",
+      "name": "Secret Node",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [100, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const key = 'top-secret-token-999'; return { result: key };"
+      },
+      "id": "node-2",
+      "name": "JS Node",
+      "type": "n8n-nodes-base.code",
+      "position": [300, 200]
+    },
+    {
+      "parameters": {
+        "value": "{{ $json.email }}",
+        "static_email": "admin@corporate.com"
+      },
+      "id": "node-3",
+      "name": "Expression Node",
+      "type": "n8n-nodes-base.set",
+      "position": [500, 200]
+    }
+  ],
+  "connections": {
+    "node-1": {
+      "main": [
+        [
+          {
+            "node": "node-2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "node-2": {
+      "main": [
+        [
+          {
+            "node": "node-3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

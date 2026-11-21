@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>n8n Workflow Sanitizer</title>
+    <style>
+        :root {
+            --primary: #ff6d5a;
+            --primary-hover: #e55b4a;
+            --bg: #f8f9fa;
+            --text: #333;
+            --card-bg: #ffffff;
+            --border: #ddd;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+        }
+        h1 { color: var(--primary); margin-bottom: 0.5rem; }
+        p { color: #666; margin-bottom: 2rem; }
+        .upload-section {
+            border: 2px dashed var(--border);
+            padding: 2rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            transition: border-color 0.3s;
+        }
+        .upload-section:hover { border-color: var(--primary); }
+        input[type="file"] { margin-bottom: 1rem; }
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.3s;
+            font-weight: bold;
+        }
+        .btn:hover { background-color: var(--primary-hover); }
+        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+        #results {
+            margin-top: 2rem;
+            text-align: left;
+            display: none;
+            padding: 1rem;
+            background: #fdfdfd;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        .stat-value { font-weight: bold; color: var(--primary); }
+        .download-links {
+            margin-top: 1.5rem;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .download-btn {
+            text-decoration: none;
+            background: #444;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        .error {
+            color: #d9534f;
+            margin-top: 1rem;
+            display: none;
+        }
+        .loader {
+            display: none;
+            margin: 1rem auto;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>n8n Workflow Sanitizer</h1>
+        <p>Очистка JSON-файлов рабочих процессов n8n от секретов</p>
+
+        <div class="upload-section">
+            <input type="file" id="fileInput" accept=".json">
+        </div>
+
+        <button id="processBtn" class="btn">Проверить и очистить</button>
+        <div id="loader" class="loader"></div>
+        <div id="error" class="error"></div>
+
+        <div id="results">
+            <h3>Результаты анализа:</h3>
+            <div id="manual-check-warning" style="display:none; color: #d9534f; background: #fdf2f2; padding: 10px; border-radius: 6px; border: 1px solid #d9534f; margin-bottom: 1rem; font-weight: bold;">
+                ⚠️ Внимание: Обнаружены элементы, требующие ручной проверки. Некоторые подозрительные значения могут оставаться в выходном JSON. Файл нельзя считать готовым к публикации без ручной проверки.
+            </div>
+            <div class="stat-row">
+                <span>Обнаружено элементов:</span>
+                <span id="stat-detected" class="stat-value">0</span>
+            </div>
+            <div class="stat-row">
+                <span>Замаскировано:</span>
+                <span id="stat-masked" class="stat-value">0</span>
+            </div>
+            <div class="stat-row">
+                <span>Подозрительно (ручная проверка):</span>
+                <span id="stat-suspicious" class="stat-value">0</span>
+            </div>
+            <div class="download-links">
+                <a id="link-json" class="download-btn" href="#">Скачать JSON</a>
+                <a id="link-report" class="download-btn" href="#">Скачать Отчет</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const processBtn = document.getElementById('processBtn');
+        const resultsDiv = document.getElementById('results');
+        const errorDiv = document.getElementById('error');
+        const loader = document.getElementById('loader');
+
+        processBtn.onclick = async () => {
+            if (!fileInput.files[0]) {
+                alert('Пожалуйста, выберите файл');
+                return;
+            }
+
+            errorDiv.style.display = 'none';
+            resultsDiv.style.display = 'none';
+            loader.style.display = 'block';
+            processBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('stat-detected').textContent = data.stats.detected;
+                    document.getElementById('stat-masked').textContent = data.stats.masked;
+                    document.getElementById('stat-suspicious').textContent = data.stats.suspicious;
+
+                    if (data.stats.suspicious > 0) {
+                        document.getElementById('manual-check-warning').style.display = 'block';
+                    } else {
+                        document.getElementById('manual-check-warning').style.display = 'none';
+                    }
+
+                    document.getElementById('link-json').href = `/download/${data.public_file}`;
+                    document.getElementById('link-report').href = `/download/${data.report_file}`;
+                    resultsDiv.style.display = 'block';
+                } else {
+                    errorDiv.textContent = data.error || 'Произошла ошибка при обработке';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (e) {
+                errorDiv.textContent = 'Ошибка сети или сервера';
+                errorDiv.style.display = 'block';
+            } finally {
+                loader.style.display = 'none';
+                processBtn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>
